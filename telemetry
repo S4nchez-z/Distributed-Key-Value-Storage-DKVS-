@@ -1,0 +1,55 @@
+// telemetry/metrics.go
+package telemetry
+
+import (
+    "net/http"
+    "time"
+
+    "github.com/prometheus/client_golang/prometheus"
+    "github.com/prometheus/client_golang/prometheus/promhttp"
+)
+
+var (
+    RequestDuration = prometheus.NewHistogramVec(
+        prometheus.HistogramOpts{
+            Name:    "dkvs_request_duration_seconds",
+            Help:    "Time spent processing request",
+            Buckets: prometheus.ExponentialBuckets(0.0001, 2, 16),
+        },
+        []string{"method", "status"},
+    )
+
+    RaftTerm = prometheus.NewGauge(
+        prometheus.GaugeOpts{
+            Name: "dkvs_raft_current_term",
+            Help: "Current Raft term",
+        },
+    )
+)
+
+func InitMetrics(port string) {
+    prometheus.MustRegister(RequestDuration, RaftTerm)
+    
+    go func() {
+        http.Handle("/metrics", promhttp.Handler())
+        http.ListenAndServe(":"+port, nil)
+    }()
+}
+
+// Декоратор для измерения времени запросов
+func WithMetrics(handler http.HandlerFunc) http.HandlerFunc {
+    return func(w http.ResponseWriter, r *http.Request) {
+        start := time.Now()
+        
+        // Создаем ResponseWriter для перехвата статуса
+        rw := &responseWriter{ResponseWriter: w}
+        
+        handler(rw, r)
+        
+        duration := time.Since(start).Seconds()
+        RequestDuration.WithLabelValues(
+            r.Method,
+            http.StatusText(rw.status),
+        ).Observe(duration)
+    }
+}
