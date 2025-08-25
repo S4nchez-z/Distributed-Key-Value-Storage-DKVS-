@@ -1,0 +1,99 @@
+// raft/consensus.go
+package raft
+
+import (
+    "context"
+    "math/rand"
+    "sync"
+    "time"
+
+    "github.com/your-org/dkvs/pb"
+    "go.uber.org/zap"
+)
+
+type Consensus struct {
+    mu            sync.RWMutex
+    currentTerm   uint64
+    votedFor      string
+    state         State
+    electionTimer *time.Timer
+
+    log         *Log
+    stateMachine StateMachine
+    transport   Transport
+    config      *Config
+
+    commitIndex uint64
+    lastApplied uint64
+
+    nextIndex  map[string]uint64
+    matchIndex map[string]uint64
+
+    logger *zap.Logger
+}
+
+func (c *Consensus) RunElectionLoop(ctx context.Context) {
+    for {
+        select {
+        case <-ctx.Done():
+            return
+        
+        case <-c.electionTimer.C:
+            c.mu.Lock()
+            if c.state == Follower || c.state == Candidate {
+                c.startElection()
+            }
+            c.mu.Unlock()
+        
+        case <-time.After(time.Duration(rand.Intn(150)+150) * time.Millisecond):
+            c.resetElectionTimer()
+        }
+    }
+}
+
+func (c *Consensus) startElection() {
+    c.state = Candidate
+    c.currentTerm++
+    c.votedFor = c.config.NodeID
+    
+    c.logger.Info("Starting election", zap.Uint64("term", c.currentTerm))
+
+    request := &pb.RequestVoteRequest{
+        Term:         c.currentTerm,
+        CandidateId:  c.config.NodeID,
+        LastLogIndex: c.log.LastIndex(),
+        LastLogTerm:  c.log.LastTerm(),
+    }
+
+    var votes int32 = 1 // Голосуем за себя
+
+    var wg sync.WaitGroup
+    for _, peer := range c.config.Peers {
+        wg.Add(1)
+        go func(peer string) {
+            defer wg.Done()
+            
+            resp, err := c.transport.RequestVote(ctx, peer, request)
+            if err != nil {
+                c.logger.Error("RequestVote failed", zap.Error(err))
+                return
+            }
+
+            c.mu.Lock()
+            defer c.mu.Unlock()
+
+            if resp.Term > c.currentTerm {
+                c.stepDown(resp.Term)
+                return
+            }
+
+            if resp.VoteGranted {
+                votes++
+                if votes > int32(len(c.config.Peers))/2 {
+                    c.becomeLeader()
+                }
+            }
+        }(peer)
+    }
+    wg.Wait()
+}
