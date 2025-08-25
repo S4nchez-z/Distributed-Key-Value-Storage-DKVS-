@@ -1,0 +1,42 @@
+// cluster/manager.go
+package cluster
+
+import (
+    "sync"
+
+    "github.com/hashicorp/memberlist"
+    "github.com/your-org/dkvs/pb"
+)
+
+type ClusterManager struct {
+    memberlist    *memberlist.Memberlist
+    delegate      *delegate
+    eventCh       chan memberlist.NodeEvent
+    members       map[string]*pb.NodeInfo
+    membersMutex  sync.RWMutex
+}
+
+func (cm *ClusterManager) Join(existing []string) error {
+    _, err := cm.memberlist.Join(existing)
+    return err
+}
+
+func (cm *ClusterManager) HandleNodeEvent(event memberlist.NodeEvent) {
+    cm.membersMutex.Lock()
+    defer cm.membersMutex.Unlock()
+
+    switch event.Event {
+    case memberlist.NodeJoin:
+        cm.members[event.Node.Name] = &pb.NodeInfo{
+            Id:      event.Node.Name,
+            Address: event.Node.Addr.String(),
+            Status:  pb.NodeStatus_JOINING,
+        }
+    
+    case memberlist.NodeLeave:
+        delete(cm.members, event.Node.Name)
+    
+    case memberlist.NodeUpdate:
+        // Обновление метаданных узла
+    }
+}
