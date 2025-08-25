@@ -1,0 +1,32 @@
+// pb/dkvs.proto
+syntax = "proto3";
+
+package dkvs;
+
+service DKVS {
+    // Raft RPCs
+    rpc RequestVote(RequestVoteRequest) returns (RequestVoteResponse) {};
+    rpc AppendEntries(AppendEntriesRequest) returns (AppendEntriesResponse) {};
+    rpc InstallSnapshot(InstallSnapshotRequest) returns (InstallSnapshotResponse) {};
+
+    // Client RPCs
+    rpc Get(GetRequest) returns (GetResponse) {};
+    rpc Set(SetRequest) returns (SetResponse) {};
+    rpc Delete(DeleteRequest) returns (DeleteResponse) {};
+    rpc Cas(CasRequest) returns (CasResponse) {};
+
+    // Cluster management
+    rpc Join(JoinRequest) returns (JoinResponse) {};
+    rpc Leave(LeaveRequest) returns (LeaveResponse) {};
+    rpc Status(StatusRequest) returns (StatusResponse) {};
+}
+
+message Command {
+    uint64 term = 1;
+    uint64 index = 2;
+    oneof operation {
+        SetOp set = 3;
+        DeleteOp delete = 4;
+        CasOp cas = 5;
+    }
+}
