@@ -16,10 +16,10 @@ type ClusterManager struct {
     membersMutex  sync.RWMutex
 }
 
-func (cm *ClusterManager) Join(existing []string) error {
+/*func (cm *ClusterManager) Join(existing []string) error {
     _, err := cm.memberlist.Join(existing)
     return err
-}
+}*/
 
 func (cm *ClusterManager) HandleNodeEvent(event memberlist.NodeEvent) {
     cm.membersMutex.Lock()
