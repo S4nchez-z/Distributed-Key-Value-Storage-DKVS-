@@ -5,7 +5,7 @@ import (
     "sync"
 
     "github.com/hashicorp/memberlist"
-    "github.com/your-org/dkvs/pb"
+   // "github.com/your-org/dkvs/pb"
 )
 
 type ClusterManager struct {
