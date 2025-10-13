@@ -4,7 +4,7 @@ syntax = "proto3";
 package dkvs;
 
 service DKVS {
-    // Raft RPCs
+
     rpc RequestVote(RequestVoteRequest) returns (RequestVoteResponse) {};
     rpc AppendEntries(AppendEntriesRequest) returns (AppendEntriesResponse) {};
     rpc InstallSnapshot(InstallSnapshotRequest) returns (InstallSnapshotResponse) {};
